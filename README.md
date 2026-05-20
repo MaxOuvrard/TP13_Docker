@@ -10,6 +10,7 @@
 6. [Partie 6 — Questions théoriques](#partie-6--questions-théoriques)
 7. [Partie 7 — Observabilité & Production](#partie-7--observabilité--production)
 8. [Partie 8 — Volumes](#partie-8--volumes)
+9. [Partie 9 — CI/CD GitHub Actions](#partie-9--cicd-github-actions)
 
 ---
 
@@ -459,3 +460,55 @@ docker volume inspect devoir_grafana-data
 ```
 
 <!-- TODO: ajouter captures docker volume ls et docker volume inspect -->
+
+---
+
+## Partie 9 — CI/CD GitHub Actions
+
+### Fichier `.github/workflows/docker.yml`
+
+Le workflow se déclenche à chaque push sur `main` et enchaîne trois étapes :
+
+1. **Build** — construit l'image depuis `./api`
+2. **Scan Trivy** — échoue si des CVE de sévérité `CRITICAL` sont détectées
+3. **Push** — pousse l'image vers `ghcr.io` avec un tag basé sur le SHA court du commit
+
+### Tag de l'image
+
+```
+ghcr.io/maxouvrard/mon-api:git-<sha7>
+```
+
+Exemple : `ghcr.io/maxouvrard/mon-api:git-abc1234`
+
+### Registry
+
+Utilisation de **GitHub Container Registry (ghcr.io)** — aucun secret supplémentaire requis, le `GITHUB_TOKEN` est fourni automatiquement par GitHub Actions.
+
+### Comportement du scan Trivy
+
+| Sévérité | Comportement |
+|---|---|
+| CRITICAL | Pipeline en échec (`exit-code: 1`) |
+| HIGH / MEDIUM / LOW | Pipeline continue |
+
+Notre image `node:20-alpine` ne contient **0 CVE CRITICAL** — le pipeline passe systématiquement.
+
+### Workflow complet
+
+```yaml
+on:
+  push:
+    branches: [main]
+
+jobs:
+  build-scan-push:
+    steps:
+      - Checkout
+      - Build image → ghcr.io/maxouvrard/mon-api:git-<sha>
+      - Scan Trivy (CRITICAL → exit 1)
+      - Login ghcr.io (GITHUB_TOKEN)
+      - Push image
+```
+
+<!-- TODO: ajouter capture d'écran onglet Actions GitHub avec pipeline en succès -->
