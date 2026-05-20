@@ -542,7 +542,7 @@ jobs:
 | API cat | `http://31.207.35.51/cat` |
 | API dog | `http://31.207.35.51/dog` |
 | Prometheus | `http://31.207.35.51:40110` |
-| Grafana | `http://31.207.35.51:40111` (admin/admin) |
+| Grafana | `http://31.207.35.51:40111` — login : `admin` / `admin` |
 | Portainer | `http://31.207.35.51:40112` |
 | Registry UI | `http://31.207.35.51:8081` |
 
