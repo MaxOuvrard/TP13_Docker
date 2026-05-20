@@ -11,6 +11,7 @@
 7. [Partie 7 — Observabilité & Production](#partie-7--observabilité--production)
 8. [Partie 8 — Volumes](#partie-8--volumes)
 9. [Partie 9 — CI/CD GitHub Actions](#partie-9--cicd-github-actions)
+10. [Partie 10 — Déploiement sur VPS](#partie-10--déploiement-sur-vps)
 
 ---
 
@@ -512,3 +513,39 @@ jobs:
 ```
 
 <!-- TODO: ajouter capture d'écran onglet Actions GitHub avec pipeline en succès -->
+
+---
+
+## Partie 10 — Déploiement sur VPS
+
+### IP publique
+
+**`31.207.35.51`**
+
+### Services accessibles
+
+| Service | URL |
+|---|---|
+| API (via Nginx) | `http://31.207.35.51/` |
+| API cat | `http://31.207.35.51/cat` |
+| API dog | `http://31.207.35.51/dog` |
+| Prometheus | `http://31.207.35.51:40110` |
+| Grafana | `http://31.207.35.51:40111` (admin/admin) |
+| Portainer | `http://31.207.35.51:40112` |
+| Registry UI | `http://31.207.35.51:8081` |
+
+### État de la stack sur le VPS
+
+```
+Name                       State           Ports
+devoir_cadvisor_1          Up (healthy)    8080/tcp
+devoir_cat_1               Up (healthy)    3000/tcp
+devoir_dog_1               Up (healthy)    3000/tcp
+devoir_grafana_1           Up              0.0.0.0:40111->3000/tcp
+devoir_nginx_1             Up (healthy)    0.0.0.0:80->80/tcp
+devoir_node-exporter_1     Up              9100/tcp
+devoir_portainer_1         Up              0.0.0.0:40112->9000/tcp
+devoir_prometheus_1        Up              0.0.0.0:40110->9090/tcp
+```
+
+<!-- TODO: ajouter capture docker-compose ps depuis le VPS et capture navigateur externe -->

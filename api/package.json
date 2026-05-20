@@ -2,9 +2,9 @@
   "name": "api",
   "version": "1.0.0",
   "description": "Simple Express API for Docker TP",
-  "main": "index.js",
+  "main": "app.js",
   "scripts": {
-    "start": "node index.js"
+    "start": "node app.js"
   },
   "dependencies": {
     "express": "^4.19.2",
