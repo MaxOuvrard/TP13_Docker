@@ -1,4 +1,4 @@
-# TP Docker – Stack complète Node.js
+# TP Docker – Évaluation Docker
 
 ## Sommaire
 
@@ -21,7 +21,7 @@
 
 ```
 api/
-├── index.js
+├── app.js
 ├── package.json
 ├── Dockerfile
 └── .dockerignore
@@ -71,11 +71,15 @@ docker run -d -e PET=dog -p 3000:3000 tp-docker-api:local
 }
 ```
 
+![Partie 1 - /](captures/partie1/rendu.png)
+
 **GET /healthz** :
 
 ```json
 {"status":"ok"}
 ```
+
+![Partie 1 - Healthz](captures/partie1/healthz.png)
 
 HTTP 200 confirmé. Le conteneur passe en statut `healthy` après le `start_period` de 10 secondes.
 
@@ -85,7 +89,7 @@ HTTP 200 confirmé. Le conteneur passe en statut `healthy` après le `start_peri
 http_requests_total 3
 ```
 
-<!-- TODO: ajouter captures d'écran partie 1 -->
+![Partie 1 - Metrics](captures/partie1/metrics.png)
 
 ---
 
@@ -107,6 +111,8 @@ Lancement :
 docker-compose -f docker-compose.registry.yml up -d
 ```
 
+![Partie 2 - Registry](captures/partie2/registry.png)
+
 ### Push de l'image
 
 ```bash
@@ -119,10 +125,8 @@ Vérification :
 
 ```bash
 curl http://localhost:5000/v2/_catalog
-# {"repositories":["mon-api"]}
 
 curl http://localhost:5000/v2/mon-api/tags/list
-# {"name":"mon-api","tags":["1.0.0"]}
 ```
 
 ### Utilisation dans le docker-compose.yml principal
@@ -135,7 +139,9 @@ services:
     image: localhost:5000/mon-api:1.0.0
 ```
 
-<!-- TODO: ajouter capture d'écran interface web registry (http://<IP>:8081) avec l'image mon-api listée -->
+#### Rendu :
+
+![Partie 2 - Rendu registry](captures/partie2/rendu.png)
 
 ---
 
@@ -176,8 +182,16 @@ depends_on:
 ### Configuration Nginx
 
 - `GET /` → upstream round-robin entre `cat:3000` et `dog:3000`
+
+![Partie 3 - dog and cat](captures/partie3/dog_and_cat.png)
+
 - `GET /cat` → exclusivement vers `cat:3000`
+
+![Partie 3 - cat](captures/partie3/cat.png)
+
 - `GET /dog` → exclusivement vers `dog:3000`
+
+![Partie 3 - dog](captures/partie3/dog.png)
 
 ### Tests
 
@@ -185,12 +199,12 @@ depends_on:
 docker-compose up -d
 
 # Round-robin sur /
-curl http://localhost/   # pet: cat
-curl http://localhost/   # pet: dog
+curl http://31.207.35.51/   # pet: cat
+curl http://31.207.35.51/   # pet: dog
 
 # Routes dédiées
-curl http://localhost/cat  # toujours pet: cat
-curl http://localhost/dog  # toujours pet: dog
+curl http://31.207.35.51/cat  # toujours pet: cat
+curl http://31.207.35.51/dog  # toujours pet: dog
 ```
 
 Résultats obtenus :
@@ -208,8 +222,6 @@ Résultats obtenus :
 // GET /dog
 {"hostname":"a3abb52de10c","pet":"dog","requests":2}
 ```
-
-<!-- TODO: ajouter captures d'écran GET /, /cat, /dog -->
 
 ---
 
@@ -236,6 +248,8 @@ ports:
   - "${NGINX_PORT}:80"
 ```
 
+![Partie 4 - inspect](captures/partie4/inspect.png)
+
 ### Dockerfile — ordre des couches
 
 `package*.json` est copié en premier pour exploiter le cache Docker : si le code change mais pas les dépendances, `npm install` n'est pas rejoué.
@@ -254,6 +268,8 @@ Le `.dockerignore` exclut `node_modules`, `.env` et `.git` du contexte de build.
 trivy image --severity HIGH,CRITICAL tp-docker-api:local
 ```
 
+![Partie 4 - trivy](captures/partie4/trivy_part.png)
+
 Résultat :
 
 ```
@@ -267,13 +283,17 @@ Total: 11 (HIGH: 11, CRITICAL: 0)
 
 `node:latest` est basé sur Debian Bookworm et embarque des centaines de paquets système (gcc, binutils, libc, openssl…) dont beaucoup ont des CVE connus. `node:20-alpine` repose sur musl libc et BusyBox — surface d'attaque réduite au strict minimum, image 3× plus légère (~180 MB vs ~1 GB), et quasiment zéro CVE OS.
 
-<!-- TODO: ajouter capture d'écran sortie trivy dans captures/ -->
-
 ---
 
 ## Partie 5 — Validation de la stack
 
-<!-- TODO: ajouter captures d'écran docker-compose ps, round-robin /, /cat, /dog -->
+#### Health check
+
+![Partie 5 - health](captures/partie5/health_check.png)
+
+#### Route /
+
+![Partie 5 - dog and cat](captures/partie3/dog_and_cat.png)
 
 ---
 
@@ -333,16 +353,17 @@ const password = fs.readFileSync('/run/secrets/db_password', 'utf8').trim();
 ### Structure
 
 ```
-prometheus/
-└── prometheus.yml
-grafana/
-├── provisioning/
-│   ├── datasources/
-│   │   └── prometheus.yml
-│   └── dashboards/
-│       └── dashboard.yml
-└── dashboards/
-    └── api-dashboard.json
+monitoring/
+├── prometheus/
+│   └── prometheus.yml
+└── grafana/
+    ├── provisioning/
+    │   ├── datasources/
+    │   │   └── prometheus.yml
+    │   └── dashboards/
+    │       └── dashboard.yml
+    └── dashboards/
+        └── api-dashboard.json
 docker-compose.prod.yml
 ```
 
@@ -366,6 +387,8 @@ scrape_configs:
   - job_name: cadvisor      # → cadvisor:8080
 ```
 
+![Partie 7 - Prometheus](captures/partie7/prometheus.png)
+
 Les 4 targets sont en état `UP` (visible dans Status → Targets).
 
 ### Grafana — dashboard provisionné automatiquement
@@ -380,7 +403,13 @@ Panels disponibles :
 - Heap Node.js (MB)
 - RAM système (Go) via node-exporter
 
-<!-- TODO: ajouter captures d'écran Prometheus targets, Grafana dashboard, Portainer containers -->
+![Partie 7 - Graphana](captures/partie7/graphana.png)
+
+### Portainer
+
+Portainer est accessible sur `http://31.207.35.51:40112`. Il offre une interface web pour gérer les conteneurs, images, volumes et réseaux Docker sans passer par la ligne de commande. Le socket Docker (`/var/run/docker.sock`) est monté en lecture/écriture pour lui donner accès au daemon.
+
+![Partie 7 - Portainer](captures/partie7/portainer.png)
 
 ### docker-compose.prod.yml — limites ressources
 
@@ -422,9 +451,9 @@ Les fichiers de configuration sont injectés depuis l'hôte en lecture seule —
 | Fichier hôte | Cible conteneur | Service |
 |---|---|---|
 | `./nginx/nginx.conf` | `/etc/nginx/conf.d/default.conf:ro` | nginx |
-| `./prometheus/prometheus.yml` | `/etc/prometheus/prometheus.yml:ro` | prometheus |
-| `./grafana/provisioning` | `/etc/grafana/provisioning:ro` | grafana |
-| `./grafana/dashboards` | `/var/lib/grafana/dashboards:ro` | grafana |
+| `./monitoring/prometheus/prometheus.yml` | `/etc/prometheus/prometheus.yml:ro` | prometheus |
+| `./monitoring/grafana/provisioning` | `/etc/grafana/provisioning:ro` | grafana |
+| `./monitoring/grafana/dashboards` | `/var/lib/grafana/dashboards:ro` | grafana |
 
 ### Justification du choix
 
@@ -435,32 +464,15 @@ Les fichiers de configuration sont injectés depuis l'hôte en lecture seule —
 
 ```bash
 docker volume ls
-# DRIVER    VOLUME NAME
-# local     devoir_grafana-data
-# local     devoir_portainer-data
-# local     devoir_prometheus-data
-# local     devoir_registry-data
+```
 
+![Partie 8 - volumes](captures/partie8/volume.png)
+
+```bash
 docker volume inspect devoir_grafana-data
 ```
 
-```json
-[
-  {
-    "CreatedAt": "2026-05-20T13:33:44+02:00",
-    "Driver": "local",
-    "Labels": {
-      "com.docker.compose.project": "devoir",
-      "com.docker.compose.volume": "grafana-data"
-    },
-    "Mountpoint": "/var/lib/docker/volumes/devoir_grafana-data/_data",
-    "Name": "devoir_grafana-data",
-    "Scope": "local"
-  }
-]
-```
-
-<!-- TODO: ajouter captures docker volume ls et docker volume inspect -->
+![Partie 8 - inspect](captures/partie8/inspect.png)
 
 ---
 
@@ -479,6 +491,8 @@ Le workflow se déclenche à chaque push sur `main` et enchaîne trois étapes :
 ```
 ghcr.io/maxouvrard/mon-api:git-<sha7>
 ```
+
+![Partie 9 - Pipeline](captures/partie9/pipeline.png)
 
 Exemple : `ghcr.io/maxouvrard/mon-api:git-abc1234`
 
@@ -512,8 +526,6 @@ jobs:
       - Push image
 ```
 
-<!-- TODO: ajouter capture d'écran onglet Actions GitHub avec pipeline en succès -->
-
 ---
 
 ## Partie 10 — Déploiement sur VPS
@@ -536,16 +548,4 @@ jobs:
 
 ### État de la stack sur le VPS
 
-```
-Name                       State           Ports
-devoir_cadvisor_1          Up (healthy)    8080/tcp
-devoir_cat_1               Up (healthy)    3000/tcp
-devoir_dog_1               Up (healthy)    3000/tcp
-devoir_grafana_1           Up              0.0.0.0:40111->3000/tcp
-devoir_nginx_1             Up (healthy)    0.0.0.0:80->80/tcp
-devoir_node-exporter_1     Up              9100/tcp
-devoir_portainer_1         Up              0.0.0.0:40112->9000/tcp
-devoir_prometheus_1        Up              0.0.0.0:40110->9090/tcp
-```
-
-<!-- TODO: ajouter capture docker-compose ps depuis le VPS et capture navigateur externe -->
+![Partie 10 - health](captures/partie10/health.png)
