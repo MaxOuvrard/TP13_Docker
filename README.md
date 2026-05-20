@@ -9,6 +9,7 @@
 5. [Partie 5 — Validation de la stack](#partie-5--validation-de-la-stack)
 6. [Partie 6 — Questions théoriques](#partie-6--questions-théoriques)
 7. [Partie 7 — Observabilité & Production](#partie-7--observabilité--production)
+8. [Partie 8 — Volumes](#partie-8--volumes)
 
 ---
 
@@ -396,3 +397,65 @@ Exemple de limites appliquées :
 | nginx | 0.25 | 64 MB |
 | prometheus | 0.50 | 256 MB |
 | grafana | 0.50 | 256 MB |
+
+---
+
+## Partie 8 — Volumes
+
+### Volumes nommés (données persistantes)
+
+Les données qui doivent survivre à un redémarrage sont stockées dans des volumes nommés gérés par Docker :
+
+| Volume | Service | Données stockées |
+|---|---|---|
+| `devoir_grafana-data` | grafana | Base SQLite, sessions, alertes |
+| `devoir_prometheus-data` | prometheus | Séries temporelles (TSDB) |
+| `devoir_portainer-data` | portainer | Configuration, utilisateurs |
+| `devoir_registry-data` | registry | Images Docker poussées |
+
+### Bind mounts (fichiers de configuration)
+
+Les fichiers de configuration sont injectés depuis l'hôte en lecture seule — ils sont versionnés dans le dépôt Git et ne doivent pas être modifiés par les conteneurs :
+
+| Fichier hôte | Cible conteneur | Service |
+|---|---|---|
+| `./nginx/nginx.conf` | `/etc/nginx/conf.d/default.conf:ro` | nginx |
+| `./prometheus/prometheus.yml` | `/etc/prometheus/prometheus.yml:ro` | prometheus |
+| `./grafana/provisioning` | `/etc/grafana/provisioning:ro` | grafana |
+| `./grafana/dashboards` | `/var/lib/grafana/dashboards:ro` | grafana |
+
+### Justification du choix
+
+- **Volume nommé** pour les données : Docker gère le cycle de vie, les données persistent même si le conteneur est supprimé et recréé. Indispensable pour Grafana (dashboards créés manuellement, sessions) et Prometheus (historique des métriques).
+- **Bind mount en `:ro`** pour les configs : la configuration est la source de vérité dans Git. Le `:ro` empêche le conteneur de modifier accidentellement les fichiers.
+
+### Vérification
+
+```bash
+docker volume ls
+# DRIVER    VOLUME NAME
+# local     devoir_grafana-data
+# local     devoir_portainer-data
+# local     devoir_prometheus-data
+# local     devoir_registry-data
+
+docker volume inspect devoir_grafana-data
+```
+
+```json
+[
+  {
+    "CreatedAt": "2026-05-20T13:33:44+02:00",
+    "Driver": "local",
+    "Labels": {
+      "com.docker.compose.project": "devoir",
+      "com.docker.compose.volume": "grafana-data"
+    },
+    "Mountpoint": "/var/lib/docker/volumes/devoir_grafana-data/_data",
+    "Name": "devoir_grafana-data",
+    "Scope": "local"
+  }
+]
+```
+
+<!-- TODO: ajouter captures docker volume ls et docker volume inspect -->
