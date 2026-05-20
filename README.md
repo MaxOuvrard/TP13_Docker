@@ -5,6 +5,7 @@
 1. [Partie 1 — API & Dockerfile](#partie-1--api--dockerfile)
 2. [Partie 2 — Registry privé](#partie-2--registry-privé)
 3. [Partie 3 — Stack Compose & Nginx](#partie-3--stack-compose--nginx)
+4. [Partie 4 — Sécurité](#partie-4--sécurité)
 
 ---
 
@@ -203,3 +204,61 @@ Résultats obtenus :
 ```
 
 <!-- TODO: ajouter captures d'écran GET /, /cat, /dog -->
+
+---
+
+## Partie 4 — Sécurité
+
+### Variables d'environnement via `.env`
+
+Toutes les valeurs configurables sont centralisées dans `.env` (exclu du dépôt via `.gitignore`). Un fichier `.env.example` est versionné à la place :
+
+```env
+PET_CAT=cat
+PET_DOG=dog
+NGINX_PORT=80
+API_PORT=3000
+```
+
+Le `docker-compose.yml` n'contient aucune valeur en dur — tout passe par ces variables :
+
+```yaml
+environment:
+  - PET=${PET_CAT}
+  - PORT=${API_PORT}
+ports:
+  - "${NGINX_PORT}:80"
+```
+
+### Dockerfile — ordre des couches
+
+`package*.json` est copié en premier pour exploiter le cache Docker : si le code change mais pas les dépendances, `npm install` n'est pas rejoué.
+
+```dockerfile
+COPY package*.json ./
+RUN npm install --only=production
+COPY . .
+```
+
+Le `.dockerignore` exclut `node_modules`, `.env` et `.git` du contexte de build.
+
+### Scan Trivy
+
+```bash
+trivy image --severity HIGH,CRITICAL tp-docker-api:local
+```
+
+Résultat :
+
+```
+Total: 11 (HIGH: 11, CRITICAL: 0)
+```
+
+- **OS Alpine 3.23.4 : 0 CVE** — la couche système est propre
+- Les 11 HIGH proviennent tous de `cross-spawn` (CVE-2024-21538, ReDoS), dépendance transitive comptée plusieurs fois
+
+**Pourquoi `node:20-alpine` plutôt que `node:latest` ?**
+
+`node:latest` est basé sur Debian Bookworm et embarque des centaines de paquets système (gcc, binutils, libc, openssl…) dont beaucoup ont des CVE connus. `node:20-alpine` repose sur musl libc et BusyBox — surface d'attaque réduite au strict minimum, image 3× plus légère (~180 MB vs ~1 GB), et quasiment zéro CVE OS.
+
+<!-- TODO: ajouter capture d'écran sortie trivy dans captures/ -->
