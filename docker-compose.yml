@@ -1,0 +1,6 @@
+services:
+  api:
+    image: localhost:5000/mon-api:1.0.0
+    environment:
+      - PET=dog
+    restart: unless-stopped

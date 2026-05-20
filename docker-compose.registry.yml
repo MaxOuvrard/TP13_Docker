@@ -1,0 +1,27 @@
+services:
+  registry:
+    image: registry:2
+    container_name: registry
+    ports:
+      - "5000:5000"
+    volumes:
+      - registry-data:/var/lib/registry
+    restart: unless-stopped
+
+  registry-ui:
+    image: joxit/docker-registry-ui:latest
+    container_name: registry-ui
+    ports:
+      - "8081:80"
+    environment:
+      - SINGLE_REGISTRY=true
+      - REGISTRY_TITLE=Mon Registry Privé
+      - NGINX_PROXY_PASS_URL=http://registry:5000
+      - SHOW_CONTENT_DIGEST=true
+      - DELETE_IMAGES=true
+    depends_on:
+      - registry
+    restart: unless-stopped
+
+volumes:
+  registry-data:
