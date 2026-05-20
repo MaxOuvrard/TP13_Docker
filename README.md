@@ -8,6 +8,7 @@
 4. [Partie 4 — Sécurité](#partie-4--sécurité)
 5. [Partie 5 — Validation de la stack](#partie-5--validation-de-la-stack)
 6. [Partie 6 — Questions théoriques](#partie-6--questions-théoriques)
+7. [Partie 7 — Observabilité & Production](#partie-7--observabilité--production)
 
 ---
 
@@ -321,3 +322,77 @@ const password = fs.readFileSync('/run/secrets/db_password', 'utf8').trim();
 | **Secrets Docker** (en production sans Swarm) | ❌ À sauvegarder hors cluster |
 
 **Règle essentielle :** tout ce qui est dans un volume nommé (`/var/lib/docker/volumes/`) et qui n'est pas régénérable depuis le code doit être sauvegardé régulièrement (snapshot, `pg_dump`, rsync…). Le code source versionné dans Git et les images dans un registry sont toujours reconstruisables — c'est uniquement la **donnée métier** qui est irremplaçable.
+
+---
+
+## Partie 7 — Observabilité & Production
+
+### Structure
+
+```
+prometheus/
+└── prometheus.yml
+grafana/
+├── provisioning/
+│   ├── datasources/
+│   │   └── prometheus.yml
+│   └── dashboards/
+│       └── dashboard.yml
+└── dashboards/
+    └── api-dashboard.json
+docker-compose.prod.yml
+```
+
+### Services ajoutés à la stack
+
+| Service | Image | Port | Rôle |
+|---|---|---|---|
+| `prometheus` | `prom/prometheus` | 40110 | Scrape les métriques |
+| `grafana` | `grafana/grafana` | 40111 | Dashboard de visualisation |
+| `node-exporter` | `prom/node-exporter` | interne | Métriques système hôte |
+| `cadvisor` | `gcr.io/cadvisor/cadvisor` | interne | Métriques conteneurs |
+| `portainer` | `portainer/portainer-ce` | 40112 | Interface de gestion Docker |
+
+### Prometheus — targets scrappés
+
+```yaml
+scrape_configs:
+  - job_name: api-cat       # → cat:3000/metrics
+  - job_name: api-dog       # → dog:3000/metrics
+  - job_name: node-exporter # → node-exporter:9100
+  - job_name: cadvisor      # → cadvisor:8080
+```
+
+Les 4 targets sont en état `UP` (visible dans Status → Targets).
+
+### Grafana — dashboard provisionné automatiquement
+
+Le dashboard **"API Docker Stack"** est provisionné au démarrage via les fichiers versionnés dans le dépôt — aucune action manuelle requise.
+
+Panels disponibles :
+- Requêtes HTTP/sec (rate `http_requests_total`)
+- Total requêtes reçues par service
+- CPU process Node.js
+- Mémoire RSS Node.js (MB)
+- Heap Node.js (MB)
+- RAM système (Go) via node-exporter
+
+<!-- TODO: ajouter captures d'écran Prometheus targets, Grafana dashboard, Portainer containers -->
+
+### docker-compose.prod.yml — limites ressources
+
+Le fichier `docker-compose.prod.yml` est un override qui ajoute des limites CPU et RAM sur chaque service via `deploy.resources` :
+
+```bash
+# Lancer la stack en mode production
+docker-compose -f docker-compose.yml -f docker-compose.prod.yml --compatibility up -d
+```
+
+Exemple de limites appliquées :
+
+| Service | CPU max | RAM max |
+|---|---|---|
+| cat / dog | 0.50 | 128 MB |
+| nginx | 0.25 | 64 MB |
+| prometheus | 0.50 | 256 MB |
+| grafana | 0.50 | 256 MB |
