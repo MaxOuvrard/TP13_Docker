@@ -6,6 +6,8 @@
 2. [Partie 2 — Registry privé](#partie-2--registry-privé)
 3. [Partie 3 — Stack Compose & Nginx](#partie-3--stack-compose--nginx)
 4. [Partie 4 — Sécurité](#partie-4--sécurité)
+5. [Partie 5 — Validation de la stack](#partie-5--validation-de-la-stack)
+6. [Partie 6 — Questions théoriques](#partie-6--questions-théoriques)
 
 ---
 
@@ -262,3 +264,60 @@ Total: 11 (HIGH: 11, CRITICAL: 0)
 `node:latest` est basé sur Debian Bookworm et embarque des centaines de paquets système (gcc, binutils, libc, openssl…) dont beaucoup ont des CVE connus. `node:20-alpine` repose sur musl libc et BusyBox — surface d'attaque réduite au strict minimum, image 3× plus légère (~180 MB vs ~1 GB), et quasiment zéro CVE OS.
 
 <!-- TODO: ajouter capture d'écran sortie trivy dans captures/ -->
+
+---
+
+## Partie 5 — Validation de la stack
+
+<!-- TODO: ajouter captures d'écran docker-compose ps, round-robin /, /cat, /dog -->
+
+---
+
+## Partie 6 — Questions théoriques
+
+### Question 1 — Swarm : `docker compose up` vs `docker stack deploy`
+
+`docker compose up` lit un fichier `docker-compose.yml` et crée les conteneurs sur **un seul hôte**. C'est un outil de développement local : il gère le cycle de vie des conteneurs (création, réseau, volumes) mais sans haute disponibilité ni orchestration distribuée.
+
+`docker stack deploy` déploie une stack sur un **cluster Swarm** (plusieurs nœuds). Docker répartit les réplicas sur les nœuds disponibles, gère le redémarrage automatique et le rolling update. Il utilise le même format de fichier Compose, mais en mode orchestré.
+
+**Pourquoi `build:` est interdit en Swarm ?**
+En mode Swarm, les nœuds workers reçoivent l'ordre de démarrer un service — ils n'ont pas accès au code source local ni au contexte de build. L'image doit déjà exister dans un registry accessible par tous les nœuds. `build:` est une opération locale qui n'a pas de sens dans un contexte distribué : Swarm ne sait pas où se trouve le `Dockerfile`, ni comment construire l'image sur chaque machine.
+
+---
+
+### Question 2 — Secrets : variable d'environnement vs Docker Secret
+
+| | Variable d'environnement | Docker Secret |
+|---|---|---|
+| Stockage | En clair dans le process env | Chiffré dans le Raft log du Swarm |
+| Visibilité | `docker inspect` expose la valeur | Non visible via `docker inspect` |
+| Risque | Fuite via logs, sous-process, `/proc` | Monté en RAM (tmpfs), jamais écrit sur disque |
+
+**Où est accessible le secret dans le conteneur ?**
+
+```
+/run/secrets/<nom_du_secret>
+```
+
+**Lecture depuis Node.js :**
+
+```js
+const fs = require('fs');
+const password = fs.readFileSync('/run/secrets/db_password', 'utf8').trim();
+```
+
+---
+
+### Question 3 — Backup en production
+
+| Élément | Recréable automatiquement ? |
+|---|---|
+| Images Docker | ✅ Oui — `docker build` depuis le code source |
+| Conteneurs en cours | ✅ Oui — recréés par Compose/Swarm |
+| Configuration (`docker-compose.yml`, `nginx.conf`, `.env`) | ✅ Oui — si versionnée dans Git |
+| **Volumes de données** (bases de données, uploads) | ❌ **Irremplaçable** — à sauvegarder impérativement |
+| **Certificats TLS** (si auto-générés hors Let's Encrypt) | ❌ **Irremplaçable** — à sauvegarder |
+| **Secrets Docker** (en production sans Swarm) | ❌ À sauvegarder hors cluster |
+
+**Règle essentielle :** tout ce qui est dans un volume nommé (`/var/lib/docker/volumes/`) et qui n'est pas régénérable depuis le code doit être sauvegardé régulièrement (snapshot, `pg_dump`, rsync…). Le code source versionné dans Git et les images dans un registry sont toujours reconstruisables — c'est uniquement la **donnée métier** qui est irremplaçable.
